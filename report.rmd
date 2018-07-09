@@ -1,0 +1,96 @@
+---
+title: "report"
+author: "Gabriel Morais Lúcio de Araújo"
+date: "9 de julho de 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(plotly)
+library(here)
+```
+
+```{r include=FALSE}
+# Função que, dado um dia da semana, retorna se ele participa do final de semana ou não.
+is_weekend = function(dia) {
+  anw = ifelse(dia == "sexta", TRUE,
+               ifelse(dia == "sábado", TRUE,
+                      ifelse(dia == "domingo", TRUE, FALSE)))
+  
+  return(anw)
+}
+```
+
+
+Esta análise, realizada no contexto da disciplina de Análise de Dados 1 (Ciências da Computação | UFCG), é um estudo sobre o desenvolvimento no GitHub, mais especificamente vamos analisar quais tipos de arquivos são editos durante o período de 2016 a 2017.
+
+## Sobre os dados
+
+```{r message=FALSE}
+dados = read_csv(here("dados.csv"))
+linguagens = unique(subset(dados, select=c("file_extension")))
+dados$language = ifelse(dados$file_extension == 'js', 'JavaScript',
+                 ifelse(dados$file_extension == 'rb', 'Ruby', 'Undefined'))
+dados = dados %>%
+  filter(file_extension %in% c("js", "rb"))
+
+dados = dados %>% mutate(full_date = paste(month_day, the_month, the_year, sep = '-'))
+dados = dados %>% mutate(week_day= weekdays(as.Date(full_date,'%d-%m-%Y')))
+dados = dados %>% mutate(weekend = is_weekend(week_day))
+```
+
+
+Os dados foram cedidos pelo professor da disciplina, Nazareno, e podem ser encontrados [aqui]("https://raw.githubusercontent.com/nazareno/fpcc2/master/datasets/github-users-committing-filetypes.csv"). Vamos então ver como funcionam os dados obtidos em uma pequena amostra:
+
+```{r message=FALSE}
+dados
+```
+
+Primeiramente escolhi as minhas duas linguagens de programação favoritas, **JavaScript** e **Ruby**. Em seguida realizei alguns ajustes nos dados que irão me ajudar a realizar o relatório. Primeiramente criei uma nova coluna `language` com o nome da linguagem de programação, pois nos dados temos apenas o tipo do arquivo. Em seguida criei uma coluna `full_date` com a data completa, pois nos dados originais ela está separada em 3 colunas (`month_day`, `the_month`, `the_year`). Isso me ajudou quando fui criar a coluna `week_day` para saber o dia da semana e em seguida pode criar a coluna `weekend` (utilizando uma função `is_weekend`) com valores `TRUE` e `FALSE` indicando se é um final de semana ou não.
+
+Antes de começarmos a responder as perguntas do relatório, vamos analisar o comportamento das duas linguagens escolhidas em cada ano, para melhor conhecimento dos dados.
+
+```{r}
+dados = dados %>% group_by(file_extension, the_year, the_month) %>% mutate(users_month = sum(users))
+
+max = max(dados$users_month) + 10000
+min = min(dados$users_month) - 1000
+
+timeline.js = dados %>% 
+  filter(file_extension == 'js') %>%
+  ggplot(aes(x = the_month, y = users_month, colour = as.factor(the_year))) + 
+  geom_point() +
+  geom_line() +  
+  scale_x_continuous(breaks=c(1:12)) + 
+  scale_color_manual(values=c("gold3", "darkgrey")) +
+  ylim(min, max) +
+  labs(title = "Edições por Mês (JavaScript)", x = "Mês" , y= "Número de usuários", colour="Ano")
+
+timeline.rb = dados %>% 
+  filter(file_extension == 'rb') %>%
+  ggplot(aes(x = the_month, y = users_month, colour = as.factor(the_year))) + 
+  geom_point() +
+  geom_line() +  
+  scale_x_continuous(breaks=c(1:12)) + 
+  scale_color_manual(values=c("deeppink", "darkblue")) +
+  ylim(min, max) +
+  labs(title = "Edições por Mês (Ruby)", x = "Mês" , y= "Número de usuários", colour="Ano")
+
+require("gridExtra")
+grid.arrange(timeline.js, timeline.rb)
+```
+
+Com essa visualização podemos ver duas coisas. A primeira é que **JavaScript** parece ser bem mais popular que **Ruby**, acredito que isso seja por causa de tantos novos frameworks de grande potencial que estão sendo utilizados para desenvolvimento de Front-end. Outra coisa que podemos observar é que o número de usuário realizando edições nos arquivos não aparenta variar muito durante o ano.
+
+Com esse trabalho feito, vamos ao relatório!
+
+## Para cada uma delas, há uma diferença significativa na sua popularidade durante a semana e durante o fim de semana? Essa diferença é grande?
+
+```{r}
+
+```
+
+
+## Existe uma diferença significativa entre a popularidade das duas linguagens nos fins de semana?
