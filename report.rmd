@@ -1,5 +1,5 @@
 ---
-title: "report"
+title: "Popularidade de linguagens de programação - Github"
 author: "Gabriel Morais Lúcio de Araújo"
 date: "9 de julho de 2018"
 output: html_document
@@ -52,7 +52,7 @@ Primeiramente escolhi as minhas duas linguagens de programação favoritas, **Ja
 
 Antes de começarmos a responder as perguntas do relatório, vamos analisar o comportamento das duas linguagens escolhidas em cada ano, para melhor conhecimento dos dados.
 
-```{r}
+```{r message=FALSE}
 dados = dados %>% group_by(file_extension, the_year, the_month) %>% mutate(users_month = sum(users))
 
 max = max(dados$users_month) + 10000
@@ -64,7 +64,7 @@ timeline.js = dados %>%
   geom_point() +
   geom_line() +  
   scale_x_continuous(breaks=c(1:12)) + 
-  scale_color_manual(values=c("gold3", "darkgrey")) +
+  scale_color_manual(values=c("gold3", "gold1")) +
   ylim(min, max) +
   labs(title = "Edições por Mês (JavaScript)", x = "Mês" , y= "Número de usuários", colour="Ano")
 
@@ -74,7 +74,7 @@ timeline.rb = dados %>%
   geom_point() +
   geom_line() +  
   scale_x_continuous(breaks=c(1:12)) + 
-  scale_color_manual(values=c("deeppink", "darkblue")) +
+  scale_color_manual(values=c("firebrick3", "firebrick1")) +
   ylim(min, max) +
   labs(title = "Edições por Mês (Ruby)", x = "Mês" , y= "Número de usuários", colour="Ano")
 
@@ -89,8 +89,55 @@ Com esse trabalho feito, vamos ao relatório!
 ## Para cada uma delas, há uma diferença significativa na sua popularidade durante a semana e durante o fim de semana? Essa diferença é grande?
 
 ```{r}
+dados.py <- dados %>%
+  filter(file_extension == "js") %>%
+  mutate(fds = is_weekend(week_day))
 
+dados.py %>%
+  ggplot(aes(x = fds, y = users)) +
+  geom_jitter(width = .1, color = "gold3", alpha=0.6) +
+  labs(title = "Atividade de usuários JavaScript", x = "Fim de semana", y = "Usuários") +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
+Cada ponto é um dia em que houve atividade no GitHub para a linguagem **JavaScript**. Esse dia pode ter sido no final de semana ou não (eixo horizontal). Vemos que há uma concentração de dias que não são finais de semana e em que houve um número alto de usuários que programaram em **JavaScript**. Em contrapartida, há uma concentração de dias que são do final de semana e em que houve um número mais baixo de usuários. Isso nos sugere que **JavaScript** é mais popular em dias de semana do que em finais de semana. Como estou trabalhando apenas com uma amostra, não há muito confiança no fato de que **JavaScript** realmente é mais popular nos fins de semana.
+
+```{r}
+dados.rb = dados %>%
+  filter(file_extension == "rb") %>%
+  mutate(fds = is_weekend(week_day))
+
+dados.rb %>%
+  ggplot(aes(x = fds, y = users)) +
+  geom_jitter(width = .1, color = "firebrick3", alpha = 0.6) +
+  labs(title = "Atividade de usuários Ruby", x = "Fim de semana", y = "Usuários") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+De acordo com o gráfico, aparentemente não há grande diferença de popularidade da linguagem **Ruby** entre dias de semana e finais de semana. Contudo, vemos alguma concentração de um número maior de usuários quando é dia de semana e uma concentraçao menor de menos usuários quando é final de semana.
 
 ## Existe uma diferença significativa entre a popularidade das duas linguagens nos fins de semana?
+
+```{r}
+dados %>% 
+  group_by(weekend, language) %>%
+  summarise(media = mean(users)) %>%
+  filter(weekend == TRUE) %>%
+  ggplot(aes(x = language, y = media)) + 
+  geom_bar(stat = "identity", position = "dodge", width = 0.2, fill = c("gold3", "firebrick3")) +
+  labs(x = "Linguagem", y = "Quantidade de Usuários")
+```
+
+A popularidade de **JavaScript** é quase 5x maior do que a popularidade de **Ruby** nos fins de semana. Vamos ver agora a diferença nos dias da semana:
+
+```{r}
+dados %>% 
+  group_by(weekend, language) %>%
+  summarise(media = mean(users)) %>%
+  filter(weekend == FALSE) %>%
+  ggplot(aes(x = language, y = media)) + 
+  geom_bar(stat = "identity", position = "dodge", width = 0.2, fill = c("gold3", "firebrick3")) +
+  labs(x = "Linguagem", y = "Quantidade de Usuários")
+```
+
+Como podemos ver JavaScript é novamente mais popular que **Ruby**. Isso entra de acordo com o que disse no começo do relatório, sobre a popularidade dos frameworks web existentes para **JavaScript**.
