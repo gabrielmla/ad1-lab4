@@ -1,0 +1,215 @@
+---
+title: "Github - Minhas Perguntas"
+author: "Gabriel Morais Lúcio de Araújo"
+date: "July 16, 2018"
+output:
+  html_document:
+    code_folding: show
+    theme: flatly
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(plotly)
+library(bootstrap)
+library(xts)
+library(resample)
+```
+
+Esta análise, realizada no contexto da disciplina de Análise de Dados 1 (Ciências da Computação | UFCG), é um estudo sobre o desenvolvimento no GitHub, mais especificamente vamos analisar quais tipos de arquivos são editos durante o período de 2016 a 2017.
+
+```{r message=FALSE, warning=FALSE}
+dados = read_csv(here("dados.csv"))
+linguagens = unique(subset(dados, select=c("file_extension")))
+
+dados = dados %>% mutate(full_date = paste(month_day, the_month, the_year, sep = '-'))
+dados = dados %>% mutate(week_day= weekdays(as.Date(full_date,'%d-%m-%Y')))
+dados = dados %>% mutate(vacation = ifelse(the_month %in% c(1, 7), TRUE, FALSE))
+```
+
+Os dados foram cedidos pelo professor da disciplina, Nazareno, e podem ser encontrados [aqui]("https://raw.githubusercontent.com/nazareno/fpcc2/master/datasets/github-users-committing-filetypes.csv").
+Realizei alguns ajustes nos dados que irão me ajudar a realizar o relatório. Primeiramente criei uma nova coluna `language` com o nome da linguagem de programação, pois nos dados temos apenas o tipo do arquivo. Em seguida criei uma coluna `full_date` com a data completa, pois nos dados originais ela está separada em 3 colunas (`month_day`, `the_month`, `the_year`).
+
+Vamos então ver como funcionam os dados obtidos em uma pequena amostra:
+
+```{r}
+head(dados)
+
+dados %>%
+  ggplot(aes(x = file_extension, y = users, color=the_month)) +
+  geom_jitter(width = .2, alpha=0.6, size=1) +
+  scale_x_discrete(expand=c(0.01, 0)) +
+labs(title = "Atividade de usuários", x = "Linguagens de programação", y = "Quantidade de usuários", color = "Mês") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+O eixo vertical indica a quantidade de usuários que realizaram edições, o eixo vertical indica qual a linguagem de programação, isso é mostrado em um gráfico de pontos, onde cada ponto indica um dia do ano onde houve edição de arquivos da respectiva linguagem. Podemos ver que algumas linguagens são bem mais utilizadas que outras, muitas são usadas bem pouco. Outra coisa também que notamos é que o topo dos grupos verticais no geral é azul escuro, que representa uma atividade feita nos primeiros meses do ano.
+
+## 1.1 - Os meses de férias (janeiro e julho) são menos populares para as edições de arquivos?
+
+Para responder a essa pergunta, vamos dividir os dados entre os anos de 2016 e 2017 e trabalhar apenas com os dados de 2016, pois os dados de 2017 não englobam todo o ano. Os pontos azuis são os meses que vou considerar como férias (Janeiro - 1 e Julho - 7).
+
+```{r}
+dados.2016 = dados %>% filter(the_year == 2016)
+
+timeline = dados.2016 %>% group_by(the_year, the_month) %>% mutate(users_month = sum(users))
+
+max = max(timeline$users_month) + 10000
+min = min(timeline$users_month) - 1000
+
+timeline %>%
+  ggplot(aes(x = the_month, y = users_month, colour = as.factor(the_year))) + 
+  geom_point(size = 3, aes(colour = vacation)) +
+  geom_line() +  
+  scale_x_continuous(breaks=c(1:12)) + 
+  ylim(min, max) +
+  labs(title = "Edições por Mês (em todas as linguagens)", x = "Mês" , y= "Número de usuários\nque fizeram edições", colour="Ano") +
+  guides(colour=FALSE)
+```
+
+Como podemos ver nesta linha do tempo, os meses de férias parecem ser menos populares no período do ano. Na primeira metade do ano temos junho e janeiro como os meses menos populares, já na segunda metade do ano temos julho como mês menos popular (inclusive de todo o ano). Então para a nossa amostra temos que os meses de férias são menos populares, porém não podemos afirmar isso para a toda a população. Para isso iremos utilizar inferência estatística, com uso da ferramente de bootstrap.
+
+Em linha gerais, a técnica bootstrap funciona da seguinte maneira:
+
++ Reescreve um conjunto de dados do mesmo tamanho da amostra original n vezes.
++ Calcula a estatísca para cada amostra gerada;
++ Encontra o desvio padrão desta estatística;
+
+```{r message=FALSE, warning=FALSE}
+months = c(1:12)
+experiment = data.frame()
+
+for(m in months){
+  b = bootstrap(subset(dados.2016, the_month==m) , sd(users))
+  month.sd = CI.percentile(b, probs = c(.025, .975))
+  names(month.sd) = c('X2.5', 'X97.5')
+  month.sd$month = m
+  experiment = data.frame(rbind(experiment, data.frame(month.sd)))
+}
+
+experiment = experiment %>% mutate(vacation = ifelse(month %in% c(1, 7), TRUE, FALSE))
+
+experiment %>% 
+  ggplot(aes(x=month, ymin=X2.5, ymax=X97.5)) + 
+  geom_errorbar(width = .2, aes(colour = vacation)) + 
+  labs(x="Mês", y="Intervalo de confiança") +
+  scale_x_discrete(limits=c('jan', 'fev', 'mar', 'abril', 'maio', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez')) +
+  guides(colour=FALSE)
+```
+
+Existem algumas sobreposições de intervalos. Analisando apenas janeiro e julho, vemos que existe uma sobreposição muito pequena, o que me permite dizer que janeiro é mais popular que julho nas edições dos arquivos no GitHub. Porém em relação aos outros meses do ano não posso afirmar que os meses de férias são menos populares, pois como vimos anteriormente o ano parece estar dividido em dois períodos (de janeiro até junho e de julho até dezembro). Analisando cada metade vemos que janeiro faz sobreposição com o intervalo de todos os outros meses de seu período, o mesmo ocorre com julho.
+
+## 1.2 - Existe uma linguagem de programação mais popular durante as férias?
+
+```{r}
+dados.ferias = dados.2016 %>%
+  filter(the_month %in% c(1, 7))
+
+dados.ferias %>%
+  ggplot(aes(x = reorder(file_extension, -users), y = users, color=the_month)) +
+  geom_jitter(width = .2, alpha=0.6, size=1) +
+  scale_x_discrete(expand=c(0.01, 0)) +
+  labs(title = "Atividade de usuários", x = "Linguagens de programação", y = "Quantidade de usuários", color = "Mês") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(color=FALSE)
+```
+
+Vendo o gráfico notamos que os 3 tipos de arquivos mais populares nas férias, na amostra, são as extensões ".md", ".js" e ".json". Porém apenas o arquivo ".js" é de uma linguagem de programação (Javascript), por isso descendo na popularidade podemos ver as outras duas linguagens mais populares, Python e Java, respectivamente.
+
+```{r message=FALSE, warning=FALSE}
+linguagens = c('js', 'py', 'java')
+dados.linguagens = dados.ferias %>% filter(file_extension %in% linguagens)
+
+experiment2 = data.frame()
+
+for(l in linguagens){
+  b = bootstrap(subset(dados.linguagens, file_extension==l) , median(users))
+  languange.median = CI.percentile(b, probs = c(.025, .975))
+  names(languange.median) = c('X2.5', 'X97.5')
+  languange.median$file_extension = l
+  experiment2 = data.frame(rbind(experiment2, data.frame(languange.median)))
+}
+
+experiment2 %>% 
+  ggplot(aes(x=file_extension, ymin=X2.5, ymax=X97.5)) + 
+  geom_errorbar(width = .2) + 
+  labs(x="Linguagem", y="Intervalo de confiança")
+```
+
+Analisando a visualização vemos que não há sobreposição dos intervalos de cofiança das três linguagens. Podemos dizer então que Javascript é mais popular que Python, que é mais popular que Java, durante as os meses de férias.
+
+## 2.1 Existe algum mês do ano onde as pessoas programem mais?
+
+```{r}
+dados.2016 %>%
+  ggplot(aes(x = reorder(the_month, -users), y = users, color = the_month)) +
+  geom_jitter(width = .2, alpha=0.6, size=1) +
+  scale_x_discrete(expand=c(0.01, 0)) +
+  labs(title = "Atividade de usuários", x = "Meses do ano", y = "Quantidade de usuários") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(color=FALSE)
+```
+
+Fevereiro e Março são os meses mais populares do ano, na verdade toda a primeira metade do ano é mais popular que a segunda metade, na nossa amostra. Utilizando bootstrap temos:
+
+```{r message=FALSE, warning=FALSE}
+months = c(1:12)
+experiment3 = data.frame()
+
+for(m in months){
+  b = bootstrap(subset(dados.2016, the_month==m) , sd(users))
+  month.sd = CI.percentile(b, probs = c(.025, .975))
+  names(month.sd) = c('X2.5', 'X97.5')
+  month.sd$month = m
+  experiment3 = data.frame(rbind(experiment3, data.frame(month.sd)))
+}
+
+experiment3 %>% 
+  ggplot(aes(x=month, ymin=X2.5, ymax=X97.5)) + 
+  geom_errorbar(width = .2) + 
+  labs(x="Mês", y="Intervalo de confiança") +
+  scale_x_discrete(limits=c('jan', 'fev', 'mar', 'abril', 'maio', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'))
+```
+
+Como visto anteriormente na análise dos meses de férias, os intervalos estão muito sobrepostos. Porém existem alguns que não, comparando o mês de fevereiro com julho podemos afirmar que fevereiro é mais popular que julho, mas não podemos afirmar que fevereiro é o mês mais popular do ano, pois seu intervalo intercepta com o de vários outros meses do ano.
+
+## 2.2 Existe algum dia da semana onde as pessoas programem mais?
+
+```{r}
+dados %>%
+  ggplot(aes(x = reorder(week_day, -users), y = users, color=the_month)) +
+  geom_jitter(width = .2, alpha=0.6, size=1) +
+  scale_x_discrete(expand=c(0.01, 0)) +
+  labs(title = "Atividade de usuários", x = "Dias da semana", y = "Quantidade de usuários") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  guides(color=FALSE)
+```
+
+Terça, quinta e quarta parecem ser os dias mais populares da semana no GitHub, na nossa amostra. Vamos utilizar o bootstrap para melhor analisar os dados.
+
+```{r message=FALSE, warning=FALSE}
+dias_da_semana = c('segunda', 'terça', 'quarta', 'quinta', 'sexta', "sábado", 'domingo')
+
+dados.semana = dados %>% filter(week_day %in% dias_da_semana)
+
+experiment4 = data.frame()
+
+for(day in dias_da_semana) {
+  b = bootstrap(subset(dados.semana, week_day==day) , median(users))
+  days.median = CI.percentile(b, probs = c(.025, .975))
+  names(days.median) = c('X2.5', 'X97.5')
+  days.median$day = day
+  experiment4 = data.frame(rbind(experiment4, data.frame(days.median)))
+}
+experiment4 %>% 
+  ggplot(aes(x=day, ymin=X2.5, ymax=X97.5)) + 
+  geom_errorbar(width = .2) + 
+  labs(x="Dia da semana", y="Intervalo de confiança")
+```
+
+Como os intervalos se sobrepõem para todos os dias da semana, então não podemos concluir que há um dia da semana em que as pessoas programem mais.
