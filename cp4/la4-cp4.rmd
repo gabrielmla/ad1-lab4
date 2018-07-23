@@ -1,0 +1,36 @@
+---
+title: "Testes de hipótese x ICs"
+author: "Gabriel Morais Lúcio de Araújo"
+date: "23 de julho de 2018"
+output:
+  html_document:
+    code_folding: show
+    theme: flatly
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(plotly)
+library(bootstrap)
+library(xts)
+library(resample)
+```
+
+Esta análise, realizada no contexto da disciplina de Análise de Dados 1 (Ciências da Computação | UFCG), é um estudo sobre o desenvolvimento no GitHub, mais especificamente vamos analisar quais tipos de arquivos são editos durante o período de 2016 a 2017.
+
+```{r message=FALSE, warning=FALSE}
+dados = read_csv(here("/cp4/dados.csv"))
+linguagens = unique(subset(dados, select=c("file_extension")))
+
+dados = dados %>% mutate(full_date = paste(month_day, the_month, the_year, sep = '-'))
+dados = dados %>% mutate(week_day= weekdays(as.Date(full_date,'%d-%m-%Y')))
+dados = dados %>% mutate(vacation = ifelse(the_month %in% c(1, 7), TRUE, FALSE))
+```
+
+Os dados foram cedidos pelo professor da disciplina, Nazareno, e podem ser encontrados [aqui]("https://raw.githubusercontent.com/nazareno/fpcc2/master/datasets/github-users-committing-filetypes.csv").
+Realizei alguns ajustes nos dados que irão me ajudar a realizar o relatório. Primeiramente criei uma nova coluna `language` com o nome da linguagem de programação, pois nos dados temos apenas o tipo do arquivo. Em seguida criei uma coluna `full_date` com a data completa, pois nos dados originais ela está separada em 3 colunas (`month_day`, `the_month`, `the_year`).
