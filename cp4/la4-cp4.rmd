@@ -21,6 +21,7 @@ library(xts)
 library(resample)
 ```
 
+# Introdução
 Esta análise, realizada no contexto da disciplina de Análise de Dados 1 (Ciências da Computação | UFCG), é um estudo sobre o desenvolvimento no GitHub, mais especificamente vamos analisar quais tipos de arquivos são editos durante o período de 2016 a 2017.
 
 ```{r message=FALSE, warning=FALSE}
@@ -30,7 +31,98 @@ linguagens = unique(subset(dados, select=c("file_extension")))
 dados = dados %>% mutate(full_date = paste(month_day, the_month, the_year, sep = '-'))
 dados = dados %>% mutate(week_day= weekdays(as.Date(full_date,'%d-%m-%Y')))
 dados = dados %>% mutate(vacation = ifelse(the_month %in% c(1, 7), TRUE, FALSE))
+head(dados)
 ```
 
 Os dados foram cedidos pelo professor da disciplina, Nazareno, e podem ser encontrados [aqui]("https://raw.githubusercontent.com/nazareno/fpcc2/master/datasets/github-users-committing-filetypes.csv").
 Realizei alguns ajustes nos dados que irão me ajudar a realizar o relatório. Primeiramente criei uma nova coluna `language` com o nome da linguagem de programação, pois nos dados temos apenas o tipo do arquivo. Em seguida criei uma coluna `full_date` com a data completa, pois nos dados originais ela está separada em 3 colunas (`month_day`, `the_month`, `the_year`).
+Na análise anterior respondemos perguntas de **inferência** utilizando o método *bootstrap*, mas desta vez iremos ver conceitos de **Teste de hipótese**. Iremos utilizar este novo método para responder uma das perguntas da análise anterior, sem utilizar intervalo de confiança.
+
+A pergunta que escolhida para ser respondida utilizando conceito de **teste de hipótese** é:
+
+- Qual dos meses de férias (janeiro e julho) é o mais popular para as edições de arquivos?
+
+Na análise anterior, vimos que existia uma interseção muito pequena entre os intervalos de confiança dos meses de janeiro e julho, e que janeiro era mais popular que julho durante as férias. Vamos ver o que obtemos utilizando o **teste de hipótese**.
+
+## Teste de Hipótese
+
+O teste de hipótese é utilizando para realizar inferência sobre os dados. Inferência é a partir de uma amostra de dados concluir algo sobre a população. Utilizaremos apenas os dados de 2016 presentes na amostra, pois os dados de 2017 estão incompletos, para tentar inferir algo sobre o comportamento dos programadores que utilizam o Github.
+
+Antes de começarmos a análise, vamos ver como o **teste de hipótese** funciona!
+
+### 1. Definindo hipóteses
+
+Primeiramente deve-se definir duas hipóteses: uma hipótese (H1 | Hipótese Alternativa) que queremos concluir a partir da amostra e uma hipótese (H0 ou Hipótese Nula) que nega a hipótese H1. No nosso caso vamos ter:
+
+- H0 (Hipótese Nula): A média de edições em janeiro é menor ou igual à média de edições em julho.
+- H1 (Hipótese Alternativa): A média de edições em julho é maior ou igual à média de edições em julho.
+
+O experimento será realizado repetidas vezes em amostra de dados geradas aleatoriamente;
+
+### 2. Determinar o nível de significância do teste (α)
+
+Ao finalizar a análise, queremos saber quão significante estatisticamente é o resultado do teste. Assim, o nível de signficância é o limite que teremos como base para afirmar se o resultado obtido é fruto do acaso ou não.
+Na prática, considera-se satisfatório o limite de 5% de probabilidade de erro, e por isso, esse será o valor do nosso alpha (nivel de significância).
+
+**α** : 0.05;
+
+Ou seja, o risco que corremos de rejeitar a hipótese nula como verdadeira é de 5%.
+
+### 3. Determinar a região de rejeição
+
+A região de rejeição é calculada tendo duas informações como base: O tipo de comparação que é feita nas hipóteses e o valor do nível de significância do teste. 
+Como o teste se trata de uma comparação unilateral com nivel de significância de 0.05, temos que a região de rejeição é onde:
+p-valor < 0.05.
+
+Mas o que é o p-valor?
+ 
+### 4. Calcular o p-valor
+
+O p-valor é a probabilidade do resultado dos experimentos serem obtidos assumindo que a hipotese nula é verdadeira. Ou seja, se essa probabilidade é baixa, logo, rejeitaremos a hipótese nula uma vez que ela não suporta os resultados encontrados. O p-valor é obtido quando as repetições do experimento forem realizadas.
+
+É importante ressaltar que ao final do teste de hipótese, temos duas situações:
+-> Rejeitar a hipótese nula, e assim, considerar a hipótese alternativa. 
+-> Não rejeitar a hipótese nula. Nesse caso, não há comprovação desta, apenas não há evidências para a rejeição da mesma. 
+
+## Pergunta
+
+Vamos agora responder nossa pergunta, apenas para relembrar:
+
+- Qual dos meses de férias (janeiro e julho) é o mais popular para as edições de arquivos?
+
+Lembrando que vamos responder utilizando nossa hipótese alternativa (H1):
+
+- A média de edições em julho é maior ou igual à média de edições em julho.
+
+```{r message=FALSE, error=FALSE, warning=FALSE}
+dados = dados %>% filter(the_year == 2016)
+dados.vacation = dados %>% filter(vacation)
+
+dados.vacation.janeiro = dados.vacation %>% filter(the_month == 1)
+dados.vacation.julho = dados.vacation %>% filter(the_month == 7)
+```
+
+```{r message=FALSE, error=FALSE, warning=FALSE}
+experiment = permutationTest2(data=dados.vacation.janeiro,
+                                     alternative="greater",
+                                     statistic=median(users),
+                                     data2=dados.vacation.julho)
+```
+
+Vamos ver o P-VALOR:
+
+```{r message=FALSE, error=FALSE, warning=FALSE}
+experiment$stats %>% t()
+```
+
+P-VALOR = 0.0028 < 0.05 (nível de significância)
+
+### 5. Análise do Resultado
+
+Como o p-valor obtido está na região crítica, ou seja seu valor foi menor que o nível de significância (0.05) estabelecido, então podemos rejeitar a hipótese nula (H0).
+
+Assim, o p-valor nos informa que os dados obtidos nos mundos gerados contradizem a hipótese nula. Uma vez que a probabilidade de os resultados ocorrerem, levando em consideração a hipotese nula como verdadeira é de (0.28%). Logo, é estatisticamente considerável que janeiro tenha uma média de usuários engajados maior do que julho.
+
+A lógica para chegarmos nisso é a dupla negação
+H0 = ¬H1 (H0 é o complemento de H1)
+Como chegamos na negação/rejeição de H0, temos ¬H0, assim, temos ¬¬H1, que é o mesmo que H1.
